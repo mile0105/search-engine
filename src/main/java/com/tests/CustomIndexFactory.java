@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -62,7 +63,7 @@ public class CustomIndexFactory {
         }
     }
 
-    public List<String> search(String input) {
+    public List<SearchResult> search(String input) {
         if (input == null) {
             return Collections.emptyList();
         }
@@ -71,11 +72,11 @@ public class CustomIndexFactory {
         if (words.length == 0) {
             return Collections.emptyList();
         }
-        List<String> results = new ArrayList<>();
+        List<SearchResult> results = new ArrayList<>();
 
-        Map<String, Map<Integer, List<Integer>>> occurencesPerWord = new LinkedHashMap<>();
+        Map<String, Map<Integer, List<Integer>>> occurrencesPerWord = new LinkedHashMap<>();
 
-        Map<String, Integer> result = new HashMap<>();
+        Map<String, SearchResult> result = new HashMap<>();
 
         for (String word : words) {
 
@@ -92,12 +93,12 @@ public class CustomIndexFactory {
             }
 
             for (FileNumberPositionPair pairs : wordIndex) {
-                occurencesPerWord.computeIfAbsent(word, map -> new HashMap<>())
+                occurrencesPerWord.computeIfAbsent(word, map -> new HashMap<>())
                         .computeIfAbsent(pairs.fileNumber, empty -> new ArrayList<>()).add(pairs.filePosition);
             }
         }
 
-        List<Map<Integer, List<Integer>>> values = new ArrayList<>(occurencesPerWord.values());
+        List<Map<Integer, List<Integer>>> values = new ArrayList<>(occurrencesPerWord.values());
 
         Set<Integer> finalInterSection = values.get(0).keySet();
 
@@ -109,7 +110,7 @@ public class CustomIndexFactory {
 
         Map<String, Map<Integer, List<Integer>>> occurencesPerWordResult = new LinkedHashMap<>();
 
-        for (Map.Entry<String, Map<Integer, List<Integer>>> entry : occurencesPerWord.entrySet()) {
+        for (Map.Entry<String, Map<Integer, List<Integer>>> entry : occurrencesPerWord.entrySet()) {
             for (Integer integer : entry.getValue().keySet()) {
                 if (finalInterSection.contains(integer)) {
                     List<Integer> positions = entry.getValue().get(integer);
@@ -129,7 +130,6 @@ public class CustomIndexFactory {
             }
 
             for (Integer fileIndex : finalInterSection) {
-                int occurences = 0;
                 String firstWord = words[firstNonStopWordIndex].toLowerCase();
                 List<Integer> firstWordPositionsInFile = occurencesPerWordResult.get(firstWord).get(fileIndex);
                 for (int position : firstWordPositionsInFile) {
@@ -140,21 +140,28 @@ public class CustomIndexFactory {
                             position++;
                             continue;
                         }
-                        List<Integer> wordPositionsInFile = occurencesPerWord.get(optimizedWord).get(fileIndex);
+                        List<Integer> wordPositionsInFile = occurrencesPerWord.get(optimizedWord).get(fileIndex);
                         if (!wordPositionsInFile.contains(++position)) {
                             break;
                         }
                     }
 
                     if (j == words.length) {
-                        occurences++;
+                        String fileName = files.get(fileIndex);
+
+                        SearchResult searchResult;
+
+                        if (result.containsKey(fileName)) {
+                            searchResult = result.get(fileName);
+                        } else {
+                            searchResult = new SearchResult(fileName);
+                        }
+
+                        searchResult.addPosition(position - words.length);
+                        result.put(fileName, searchResult);
                         // phrase exists in given file
                     }
 
-                }
-                if (occurences > 0) {
-                    String fileName = files.get(fileIndex);
-                    result.put(fileName, occurences);
                 }
 
             }
@@ -167,26 +174,20 @@ public class CustomIndexFactory {
 
             for (Map.Entry<Integer, List<Integer>> file : filesMap.entrySet()) {
                 String fileName = files.get(file.getKey());
-                int sum = file.getValue().size();
-                result.put(fileName, sum);
+
+                SearchResult searchResult = new SearchResult(fileName, file.getValue());
+                result.put(fileName, searchResult);
             }
 
 
         }
-        Map<String, Integer> sorted = result.entrySet()
-                .stream()
-                .sorted(Collections.reverseOrder(comparingByValue()))
-                .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e2, LinkedHashMap::new));
 
-        for (Map.Entry<String, Integer> entry : sorted.entrySet()) {
-            String fileName = entry.getKey();
-            int entryValue = entry.getValue();
-            String hit = entryValue == 1 ? "hit" : "hits";
-            results.add(fileName + ":    " + entryValue + "    " + hit);
-        }
+        results = result.values()
+                .stream()
+                .sorted(Collections.reverseOrder(Comparator.comparing(SearchResult::getNumberOfHits)))
+                .collect(Collectors.toList());
 
         return results;
-
     }
 
 
