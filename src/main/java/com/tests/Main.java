@@ -64,6 +64,8 @@ public class Main {
 
                     int index = list.locationToIndex(e.getPoint());
 
+                    arrayResult[index].getPositions().sort(Integer::compareTo);
+
                     String filePositions = arrayResult[index].getPositions().stream().map(Object::toString).collect(Collectors.joining(", "));
 
                     positionsLabel.setText("<html><p>" + filePositions + "</p></html>");

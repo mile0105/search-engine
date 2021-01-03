@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -18,13 +19,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static java.util.Map.Entry.comparingByValue;
-import static java.util.stream.Collectors.toMap;
 
 public class CustomIndexFactory {
 
     private static String FILES_PATH = "D:\\Projects\\Intelligent Information Retrieval\\files\\";
     private static String CUSTOM_INDEX_PATH = "D:\\Projects\\Intelligent Information Retrieval\\index\\custom\\index.json";
+
+    private LevenshteinCalculator levenshteinCalculator = new LevenshteinCalculator();
+
+    private static int FUZZY_LOGIC_PARAM = 1;
 
     private List<String> stopwords = Arrays.asList("a", "able", "about",
             "across", "after", "all", "almost", "also", "am", "among", "an",
@@ -85,7 +88,7 @@ public class CustomIndexFactory {
                 continue;
             }
 
-            List<FileNumberPositionPair> wordIndex = index.get(optimizedWord);
+            List<FileNumberPositionPair> wordIndex = getWord(optimizedWord);
 
             if (wordIndex == null) {
                 // some word is not found somewhere
@@ -274,6 +277,21 @@ public class CustomIndexFactory {
             }
         }
         return result;
+    }
+
+    private List<FileNumberPositionPair> getWord(String optimizedWord) {
+        List<FileNumberPositionPair> fileNumberPositionPairs = index.get(optimizedWord);
+
+        if (fileNumberPositionPairs != null) {
+            return fileNumberPositionPairs;
+        }
+
+        return index.entrySet().stream()
+                .filter(entry -> levenshteinCalculator.calculate(optimizedWord, entry.getKey()) <= FUZZY_LOGIC_PARAM)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)).values()
+                .stream().flatMap(Collection::stream)
+                .collect(Collectors.toList());
+
     }
 
 }
